@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vibe Launcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg0:#0b0c0f;--bg1:#1c1e23;--text:#f1f0ea;--dim:rgba(241,240,234,.56);--faint:rgba(241,240,234,.14);
+  --glow:0 0 14px rgba(255,255,255,.35);--ok:#8fe3a2;--warn:#f3cf7a;--bad:#ff9d8f;--tip:#a9d3ff;--card:rgba(255,255,255,.035);--line:rgba(255,255,255,.08)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg0);color:var(--text);font:15px/1.4 Inter,-apple-system,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+body{background:radial-gradient(120% 90% at 50% 45%,var(--bg1) 0%,#121318 55%,var(--bg0) 100%)}
+#smoke{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+.float{position:fixed;opacity:.5;filter:drop-shadow(0 0 6px rgba(255,255,255,.4));animation:bob 6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-8px) rotate(8deg)}}
+body.idle *{animation-play-state:paused!important}
+
+/* ---------- title menu ---------- */
+.menu{position:fixed;left:50%;top:50%;transform:translate(-50%,-54%);display:flex;flex-direction:column;align-items:center;text-align:center;min-width:280px;transition:opacity .3s,transform .3s}
+.menu.away{opacity:0;transform:translate(-50%,-54%) scale(.96);pointer-events:none}
+.logo{width:84px;height:84px;filter:drop-shadow(0 0 10px rgba(255,255,255,.55));animation:breathe 5s ease-in-out infinite}
+@keyframes breathe{50%{filter:drop-shadow(0 0 18px rgba(191,227,255,.7))}}
+.title{font-size:34px;font-weight:600;letter-spacing:-.01em;margin:12px 0 22px;text-shadow:var(--glow)}
+.item{all:unset;cursor:pointer;font-size:19px;font-weight:500;padding:6px 18px;text-shadow:0 0 10px rgba(255,255,255,.25);transition:transform .15s,text-shadow .15s}
+.item:hover,.item:focus-visible{transform:scale(1.07);text-shadow:0 0 16px rgba(255,255,255,.75)}
+.item[disabled]{opacity:.45;cursor:default;transform:none}
+.item.play{font-size:23px;font-weight:600}
+.gap{height:12px}
+.chipline{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:4px 0 2px}
+.chip{all:unset;cursor:pointer;font-size:12.5px;color:var(--dim);border:1px solid var(--faint);border-radius:999px;padding:3px 10px}
+.chip:hover{color:var(--text);border-color:rgba(255,255,255,.35)}
+.chip b{color:var(--text);font-weight:600}
+.row2{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+
+/* ---------- footer ---------- */
+.foot{position:fixed;left:0;right:0;bottom:0;padding:40px 24px 16px;background:linear-gradient(transparent,rgba(11,12,15,.92) 55%);z-index:5;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;font-size:12.5px;color:var(--dim)}
+.acct{display:flex;align-items:center;gap:10px}
+.acct img{width:26px;height:26px;border-radius:5px;image-rendering:pixelated;background:var(--faint)}
+.link{all:unset;cursor:pointer;color:var(--text);text-decoration:underline;text-decoration-color:var(--faint);text-underline-offset:3px}
+.link:hover{text-decoration-color:var(--text)}
+.statusBox{text-align:right;min-width:0;max-width:52vw}
+#status{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track{height:2px;background:var(--faint);margin-top:7px;border-radius:2px;overflow:hidden;width:280px;margin-left:auto}
+.fill{height:100%;width:0;background:#fff;box-shadow:0 0 8px #fff;transition:width .3s}
+.fill.indef{width:28%!important;animation:slide 1.2s ease-in-out infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(360%)}}
+
+/* ---------- panels ---------- */
+.panel{position:fixed;top:0;bottom:0;left:50%;width:min(640px,calc(100vw - 40px));padding:48px 0 100px;overflow:auto;opacity:0;transform:translate(-50%,16px);pointer-events:none;transition:opacity .3s,transform .3s;scrollbar-width:thin}
+.panel.wide{width:min(860px,calc(100vw - 40px))}
+.panel.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.panel h2{font-size:28px;font-weight:600;margin:0 0 4px;text-shadow:var(--glow)}
+.panel h3{margin:0 0 4px;font-size:14px;font-weight:600}
+.lede{color:var(--dim);margin:0 0 22px;font-size:14px}
+.back{all:unset;cursor:pointer;color:var(--dim);font-size:14px;margin-bottom:18px;display:inline-block}
+.back:hover{color:var(--text)}
+.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:12px;backdrop-filter:blur(6px)}
+.box p,.hint{margin:0 0 12px;color:var(--dim);font-size:12.5px}
+.sec{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);margin:22px 0 10px;font-weight:600}
+input[type=text],input[type=search],select.in{width:100%;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 11px}
+select.in option{background:#17181c}
+input:focus,select.in:focus{outline:none;border-color:rgba(255,255,255,.35)}
+input[type=range]{width:100%;accent-color:#fff}
+.row{display:flex;align-items:center;gap:12px}
+.grow{flex:1;min-width:0}
+.big{font-size:18px;font-weight:600;min-width:72px;text-align:right}
+code{background:rgba(0,0,0,.4);border:1px solid var(--line);padding:1px 6px;border-radius:5px;font-size:11.5px;word-break:break-all}
+.check{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px}
+.check input{accent-color:#fff;width:15px;height:15px;flex:none}
+.btn{all:unset;cursor:pointer;font-weight:600;font-size:14px;padding:8px 16px;border:1px solid rgba(255,255,255,.35);border-radius:999px;white-space:nowrap}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn.solid{background:#fff;color:#111;border-color:#fff}
+.btn.solid:hover{background:#dfe9f3}
+.btn.small{font-size:12.5px;padding:5px 12px;font-weight:500}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+.stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+.stat .v{font-weight:600;margin-top:4px;font-size:14px;overflow:hidden;text-overflow:ellipsis}
+.stat .s{font-size:12px;color:var(--dim);margin-top:2px}
+.checks{list-style:none;margin:0;padding:0}
+.checks li{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.checks li:last-child{border:0}
+.dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none;box-shadow:0 0 8px currentColor}
+.l-ok{color:var(--ok)}.l-warn{color:var(--warn)}.l-error{color:var(--bad)}.l-tip{color:var(--tip)}
+.checks .area{color:var(--dim);font-size:11.5px;min-width:44px;margin-top:1px}
+.presets{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.preset{all:unset;cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px 14px;display:block}
+.preset:hover{border-color:rgba(255,255,255,.25)}
+.preset.on{border-color:#fff;box-shadow:0 0 0 1px #fff inset,0 0 18px rgba(255,255,255,.12)}
+.preset .n{font-weight:600}
+.preset .b{font-size:12px;color:var(--dim);margin-top:4px;line-height:1.45}
+.tag{font-size:10.5px;border:1px solid var(--faint);border-radius:999px;padding:1px 7px;margin-left:6px;color:var(--dim);font-weight:500;vertical-align:1px}
+.tag.rec{border-color:var(--tip);color:var(--tip)}
+.list .it{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--line)}
+.list .it:last-child{border:0}
+.it .t{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.it .s{font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.it.off .t{opacity:.5;text-decoration:line-through}
+.sw{appearance:none;width:34px;height:20px;border-radius:999px;background:var(--faint);position:relative;cursor:pointer;flex:none;transition:background .2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .2s}
+.sw:checked{background:rgba(143,227,162,.6)}
+.sw:checked::after{left:17px}
+.x{all:unset;cursor:pointer;color:var(--dim);font-size:13px;padding:2px 6px}
+.x:hover{color:var(--bad)}
+.empty{color:var(--dim);padding:16px 0;font-size:13.5px}
+.vlist{max-height:52vh;overflow:auto}
+.vlist button{all:unset;display:flex;justify-content:space-between;width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;cursor:pointer}
+.vlist button:hover,.vlist button.on{background:rgba(255,255,255,.07)}
+.vlist .s{color:var(--dim);font-size:12.5px}
+.srv{display:flex;gap:14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;transition:border-color .2s}
+.srv:hover{border-color:rgba(255,255,255,.22)}
+.srv .ico{width:52px;height:52px;border-radius:8px;image-rendering:pixelated;background:rgba(0,0,0,.35);flex:none;display:grid;place-items:center;overflow:hidden}
+.srv .ico img{width:100%;height:100%;image-rendering:pixelated}
+.srv .ico svg{width:26px;opacity:.6}
+.srv.off .ico{opacity:.4}
+.srv .nm{font-weight:600;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.srv .addr{font-size:12px;color:var(--dim);margin-top:1px}
+.srv .motd{font-size:12.5px;color:var(--dim);white-space:pre-line;line-height:1.35;max-height:2.7em;overflow:hidden;margin-top:4px}
+.srv .side{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:7px;text-align:right}
+.srv .pl{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+.srv .pl small{font-weight:400;color:var(--dim);font-size:12px}
+.bars{display:inline-flex;gap:2px;align-items:flex-end;height:12px}
+.bars i{width:3px;background:var(--faint);border-radius:1px}
+.bars i:nth-child(1){height:4px}.bars i:nth-child(2){height:7px}.bars i:nth-child(3){height:10px}.bars i:nth-child(4){height:12px}
+.bars.g i.on{background:var(--ok)}.bars.y i.on{background:var(--warn)}.bars.r i.on{background:var(--bad)}
+.pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.srv.off .pulse{background:var(--bad);box-shadow:0 0 8px var(--bad)}
+.srv.loading .pulse{background:var(--dim);box-shadow:none;animation:blink 1s ease-in-out infinite}
+@keyframes blink{50%{opacity:.3}}
+.srvadd{display:flex;gap:8px;flex-wrap:wrap}
+.srvadd input{flex:1 1 160px}
+@media (max-width:560px){.srv{flex-wrap:wrap}.srv .side{width:100%;flex-direction:row;justify-content:space-between;align-items:center}}
+.console{background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:12px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:14px;height:58vh;overflow:auto;white-space:pre-wrap;color:#cfd3cc}
+
+/* ---------- toasts + modals ---------- */
+.toasts{position:fixed;right:20px;top:18px;display:flex;flex-direction:column;gap:8px;z-index:30;max-width:380px}
+.toast{background:rgba(20,21,25,.95);border:1px solid rgba(255,255,255,.12);border-left:3px solid var(--tip);padding:10px 34px 10px 14px;border-radius:10px;font-size:13px;position:relative;animation:tin .25s ease-out}
+.toast.error{border-left-color:var(--bad)}.toast.warn{border-left-color:var(--warn)}.toast.success{border-left-color:var(--ok)}
+.toast button{all:unset;position:absolute;right:10px;top:8px;cursor:pointer;color:var(--dim)}
+@keyframes tin{from{opacity:0;transform:translateY(-6px)}}
+.modal{position:fixed;inset:0;display:none;place-items:center;background:rgba(8,9,11,.72);backdrop-filter:blur(8px);z-index:20}
+.modal.on{display:grid}
+.mbox{width:min(520px,calc(100vw - 40px));max-height:84vh;overflow:auto;background:rgba(28,30,35,.95);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:26px}
+.mbox h2{margin:0 0 8px;font-size:22px;font-weight:600;text-shadow:var(--glow)}
+.mbox p{color:var(--dim);font-size:13.5px;margin:0 0 16px;line-height:1.5}
+.finding{border-left:2px solid var(--bad);padding:2px 0 2px 12px;margin:0 0 14px}
+.finding .t{font-weight:600}
+.finding .e{color:var(--dim);font-size:13px;margin:3px 0}
+.finding .f{font-size:13px}
+.finding code{display:block;margin-top:6px;white-space:pre-wrap}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.bye{position:fixed;inset:0;display:none;place-items:center;text-align:center;background:var(--bg0);z-index:40}
+
+/* ---------- native window title bar ---------- */
+.titlebar{position:fixed;top:0;left:0;right:0;height:38px;display:none;align-items:stretch;z-index:50;user-select:none;-webkit-user-select:none}
+body.native .titlebar{display:flex}
+.titlebar .drag{flex:1;display:flex;align-items:center;gap:9px;padding-left:14px;font-size:12.5px;color:var(--dim);letter-spacing:.02em}
+.titlebar .drag svg{width:15px;filter:drop-shadow(0 0 4px rgba(255,255,255,.5));pointer-events:none}
+.titlebar .drag span{pointer-events:none}
+.wbtn{all:unset;width:46px;display:grid;place-items:center;color:var(--dim);cursor:default;transition:background .15s,color .15s}
+.wbtn svg{width:10px;height:10px;stroke:currentColor;stroke-width:1.2;fill:none}
+.wbtn:hover{background:rgba(255,255,255,.08);color:var(--text)}
+.wbtn.close:hover{background:rgba(255,157,143,.22);color:#fff}
+body.native .toasts{top:50px}
+body.native .panel{padding-top:62px}
+body.native .menu{top:calc(50% + 10px)}
+body.native .float:first-of-type{top:calc(9vh + 20px)}
+
+/* ---------- sign-in code ---------- */
+.code{font:600 34px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.14em;text-align:center;padding:18px 10px;margin:4px 0 14px;border:1px solid rgba(255,255,255,.18);border-radius:12px;background:rgba(0,0,0,.35);text-shadow:var(--glow);cursor:pointer;user-select:all}
+.code:hover{border-color:rgba(255,255,255,.4)}
+.steps{margin:0 0 16px;padding-left:20px;color:var(--dim);font-size:13.5px;line-height:1.7}
+.steps b{color:var(--text);font-weight:600}
+.waiting{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:13px;margin-bottom:14px}
+.spin{width:14px;height:14px;border:2px solid var(--faint);border-top-color:#fff;border-radius:50%;animation:rot .9s linear infinite;flex:none}
+@keyframes rot{to{transform:rotate(360deg)}}
+.mbox .btn.danger{border-color:rgba(255,157,143,.6);color:var(--bad)}
+.mbox .btn.danger:hover{background:rgba(255,157,143,.12)}
+
+/* ---------- compact mode ---------- */
+body.compact #smoke,body.compact .float{display:none}
+body.compact .logo{width:52px;height:52px}
+body.compact .title{font-size:24px;margin:8px 0 14px}
+body.compact .item{font-size:16px;padding:4px 14px}
+body.compact .item.play{font-size:19px}
+body.compact .panel{padding-top:28px}
+body.compact .panel h2{font-size:22px}
+body.compact .box{padding:12px 14px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="titlebar">
+  <div class="drag pywebview-drag-region"><svg viewBox="0 0 100 100"><use href="#cube"/></svg><span>Vibe Launcher</span></div>
+  <button class="wbtn" data-w="minimize" title="Minimize" aria-label="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+  <button class="wbtn" data-w="maximize" title="Maximize" aria-label="Maximize"><svg viewBox="0 0 10 10"><rect x=".6" y=".6" width="8.8" height="8.8"/></svg></button>
+  <button class="wbtn close" data-w="close" title="Close" aria-label="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+</header>
+<canvas id="smoke"></canvas>
+<svg class="float" style="right:5vw;top:9vh;width:34px" viewBox="0 0 100 100"><use href="#cube"/></svg>
+<svg class="float" style="left:5vw;top:70vh;width:24px;animation-delay:-2s;opacity:.35" viewBox="0 0 100 100"><use href="#cube"/></svg>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <g id="cube" fill="none" stroke="#fff" stroke-width="6" stroke-linejoin="round">
+    <path d="M50 8 L88 29 L88 71 L50 92 L12 71 L12 29 Z"/><path d="M12 29 L50 50 L88 29 M50 50 L50 92"/></g>
+</defs></svg>
+
+<nav class="menu" id="menu">
+  <svg class="logo" viewBox="0 0 100 100"><use href="#cube"/><path d="M31 36 L50 46 L69 36" fill="none" stroke="#bfe3ff" stroke-width="3" stroke-linecap="round" opacity=".8"/></svg>
+  <div class="title">Vibe Launcher</div>
+  <button class="item play" id="play">Play</button>
+  <div class="chipline">
+    <button class="chip" id="verChip" title="Change version">Version <b id="verLabel">…</b></button>
+    <button class="chip" data-open="profiles" title="Change profile">Profile <b id="profLabel">…</b></button>
+    <button class="chip" id="demo">Demo <b>off</b></button>
+  </div>
+  <div class="gap"></div>
+  <button class="item" data-open="servers">Servers</button>
+  <div class="row2"><button class="item" data-open="profiles">Profiles</button><button class="item" data-open="mods">Mods</button></div>
+  <button class="item" data-open="perf">Performance Optimizer</button>
+  <div class="row2"><button class="item" data-open="settings">Settings</button><button class="item" data-open="console">Console</button></div>
+  <div class="gap"></div>
+  <button class="item" id="quit">Quit Launcher</button>
+</nav>
+
+<!-- versions -->
+<section class="panel" id="p-versions">
+  <button class="back">&larr; Back</button>
+  <h2>Choose a version</h2><p class="lede">Minecraft 26.x and newer. Installed versions are marked.</p>
+  <input type="search" id="vsearch" placeholder="Search versions, e.g. 26.2" autocomplete="off">
+  <div class="box" style="margin-top:12px;padding:6px"><div class="vlist" id="vlist"></div></div>
+  <label class="check"><input type="checkbox" id="snap2"> Show snapshots</label>
+</section>
+
+<!-- servers -->
+<section class="panel wide" id="p-servers">
+  <button class="back">&larr; Back</button>
+  <h2>Servers</h2><p class="lede" id="srv-lede">Survival servers with live status.</p>
+  <div class="row" style="margin-bottom:12px"><input type="search" id="srv-filter" placeholder="Filter by name or mode, e.g. skyblock" class="grow" autocomplete="off"><button class="btn small" id="srv-refresh">Refresh</button></div>
+  <div id="srvlist"></div>
+  <div class="sec">Add a server</div>
+  <div class="box">
+    <div class="srvadd"><input type="text" id="srv-name" placeholder="Name (optional)" maxlength="40"><input type="text" id="srv-addr" placeholder="play.example.net or 1.2.3.4:25565" style="flex-grow:2"><button class="btn solid" id="srv-add">Add</button></div>
+    <div class="hint" id="srv-addmsg" style="margin:8px 0 0"></div>
+  </div>
+  <p class="hint" style="margin-top:14px">Suggested servers are run by other people; Vibe isn't affiliated with them, and each has its own rules. Joining adds the server to the top of this profile's in-game Multiplayer list. <button class="link" id="srv-restore">Restore suggested servers</button></p>
+</section>
+
+<!-- profiles -->
+<section class="panel" id="p-profiles">
+  <button class="back">&larr; Back</button>
+  <h2>Profiles</h2><p class="lede">Each profile has its own version and mod loader. Modded profiles get their own game folder, so mods never touch your main worlds.</p>
+  <div class="box list" id="plist"></div>
+  <div class="sec" id="pformTitle">New profile</div>
+  <div class="box">
+    <input type="hidden" id="pf-id">
+    <div class="row" style="margin-bottom:10px"><div class="grow"><div class="hint" style="margin-bottom:4px">Name</div><input type="text" id="pf-name" placeholder="e.g. Fabric performance"></div></div>
+    <div class="row" style="margin-bottom:10px">
+      <div class="grow"><div class="hint" style="margin-bottom:4px">Mod loader</div>
+        <select class="in" id="pf-loader"><option value="vanilla">Vanilla (no mods)</option><option value="fabric">Fabric</option><option value="neoforge">NeoForge</option><option value="forge">Forge</option></select></div>
+      <div class="grow"><div class="hint" style="margin-bottom:4px">Minecraft version</div><select class="in" id="pf-version"></select></div>
+    </div>
+    <div class="hint" id="pf-check"></div>
+    <div class="btns"><button class="btn solid" id="pf-save">Create profile</button><button class="btn" id="pf-cancel" style="display:none">Cancel edit</button></div>
+  </div>
+</section>
+
+<!-- mods -->
+<section class="panel wide" id="p-mods">
+  <button class="back">&larr; Back</button>
+  <h2>Mods</h2><p class="lede" id="mods-lede"></p>
+  <div id="mods-vanilla" class="box" style="display:none"><h3>This profile is vanilla</h3><p>Mods need Fabric, NeoForge or Forge. Create a modded profile; it gets its own folder so your main worlds stay untouched.</p><button class="btn solid" data-open="profiles">Go to Profiles</button></div>
+  <div id="mods-main">
+    <div id="mods-problems"></div>
+    <div class="sec">Performance mods</div>
+    <div class="box">
+      <p>Checked against Modrinth for this exact Minecraft version and loader. Incompatible mods can't be selected, and required dependencies are added automatically.</p>
+      <div class="list" id="perf-list"><div class="empty">Checking compatibility…</div></div>
+      <div class="btns"><button class="btn solid" id="perf-install" disabled>Install selected</button></div>
+    </div>
+    <div class="sec">Find more on Modrinth</div>
+    <div class="box">
+      <div class="row"><input type="search" id="msearch" placeholder="Search mods compatible with this profile" class="grow"><button class="btn" id="msearch-go">Search</button></div>
+      <div class="list" id="msearch-res"></div>
+    </div>
+    <div class="sec" style="display:flex;justify-content:space-between;align-items:center">Installed <button class="btn small" id="open-mods">Open mods folder</button></div>
+    <div class="box list" id="mlist"></div>
+    <p class="hint">Removing a mod moves it to the launcher's trash folder (<code>~/.vibelauncher/trash</code>) instead of deleting it. Your config folder is backed up before every install.</p>
+  </div>
+</section>
+
+<!-- performance -->
+<section class="panel wide" id="p-perf">
+  <button class="back">&larr; Back</button>
+  <h2>Performance Optimizer</h2>
+  <p class="lede">Recommendations from your hardware. Nothing changes until you press Apply, and every Apply is backed up so you can restore it.</p>
+  <div class="grid" id="hwgrid"></div>
+  <div class="sec">Checks</div>
+  <div class="box"><ul class="checks" id="checks"></ul></div>
+  <div class="sec">Preset</div>
+  <div class="presets" id="presets"></div>
+  <div class="sec">Memory</div>
+  <div class="box">
+    <div class="row"><input type="range" id="ram" min="1024" max="16384" step="256" class="grow"><div class="big" id="ramv"></div></div>
+    <ul class="checks" id="ramchecks" style="margin-top:8px"></ul>
+    <details style="margin-top:6px"><summary class="hint" style="cursor:pointer;margin:0">Advanced JVM settings</summary>
+      <div style="margin-top:12px">
+        <div class="hint" style="margin-bottom:4px">Minimum heap (Xms), 0 = let the preset decide</div>
+        <div class="row"><input type="range" id="minram" min="0" max="16384" step="256" class="grow"><div class="big" id="minramv"></div></div>
+        <div class="hint" style="margin:10px 0 4px">Extra JVM arguments (added after the preset's)</div>
+        <input type="text" id="jvm2" placeholder="e.g. -XX:+UseStringDeduplication">
+        <div class="hint" style="margin-top:10px">Preset JVM flags: <code id="jvmprev"></code></div>
+      </div>
+    </details>
+  </div>
+  <label class="check" style="margin:14px 0"><input type="checkbox" id="applyopts"> Also apply the preset's in-game video settings (render distance, VSync, FPS cap…) to this profile's options.txt. It's backed up first.</label>
+  <div class="btns"><button class="btn solid" id="applyPerf">Apply</button><button class="btn" id="restorePerf">Restore previous</button></div>
+  <p class="hint" style="margin-top:16px">What actually moves FPS: Sodium (via a Fabric profile) and render distance matter most. JVM flags mainly reduce stutter from garbage collection, and more RAM than needed doesn't raise FPS. These settings are sensible defaults, not benchmarks from your PC.</p>
+  <div id="backuplist" class="hint"></div>
+</section>
+
+<!-- settings -->
+<section class="panel" id="p-settings">
+  <button class="back">&larr; Back</button>
+  <h2>Settings</h2><p class="lede">Saved to <code>~/.vibelauncher/settings.json</code></p>
+  <div class="box"><h3>Microsoft sign-in (Azure Client ID)</h3>
+    <p>Vibe signs you in and starts Minecraft itself. Microsoft requires every launcher to use its own Azure app, approved for the Minecraft API. One-time setup, see the README: register the app with personal accounts, turn on <b>Allow public client flows</b>, then <button class="link" data-url="https://aka.ms/mce-reviewappid">apply for approval</button>.</p>
+    <input type="text" id="cid" placeholder="00000000-0000-0000-0000-000000000000">
+    <p style="margin:10px 0 0">Session stored with: <span id="tokstore">…</span></p></div>
+  <div class="box"><h3>How Play starts the game</h3>
+    <label class="check" style="margin-bottom:8px"><input type="radio" name="lmode" value="direct"> Vibe launches Minecraft itself (default)</label>
+    <label class="check"><input type="radio" name="lmode" value="official"> Hand off to Mojang's Minecraft Launcher instead (useful until your Azure app is approved)</label>
+    <div class="hint" style="margin:12px 0 4px">Minecraft Launcher location, only for the hand-off (empty = find it automatically)</div>
+    <input type="text" id="olpath" placeholder="e.g. C:\XboxGames\Minecraft Launcher\Content\Minecraft.exe"></div>
+  <div class="box"><h3>Minecraft folder</h3><p>Versions, libraries and Java live here. Defaults to the official .minecraft, so your worlds show up in the Default profile.</p><input type="text" id="mcdir"></div>
+  <div class="box"><label class="check"><input type="checkbox" id="snap"> Show snapshots in the version list</label></div>
+  <div class="box"><label class="check"><input type="checkbox" id="compact"> Compact mode (smaller layout, no animated background)</label></div>
+  <div class="btns"><button class="btn solid" id="save">Save</button><span id="saved" class="hint" style="align-self:center;margin:0 0 0 6px"></span></div>
+</section>
+
+<!-- console -->
+<section class="panel wide" id="p-console">
+  <button class="back">&larr; Back</button>
+  <h2>Console</h2><p class="lede">Launcher and game output. Tokens are always hidden.</p>
+  <div class="btns" style="margin-bottom:10px"><button class="btn small" id="openGame">Open game folder</button><button class="btn small" id="showCrash" style="display:none">Last crash</button><button class="btn small" id="repair">Repair current version</button></div>
+  <div class="console" id="log"></div>
+</section>
+
+<footer class="foot">
+  <div class="acct" id="acct"></div>
+  <div class="statusBox"><div id="status">Ready</div><div class="track"><div class="fill" id="fill"></div></div></div>
+</footer>
+
+<div class="modal" id="gate"><div class="mbox" style="text-align:center">
+  <h2>Sign in to play</h2><p id="gateMsg"></p>
+  <div class="btns" style="flex-direction:column"><button class="btn solid" id="gSign">Sign in with Microsoft</button><button class="btn" id="gDemo">Play the free demo instead</button><button class="btn" id="gOfficial">Hand off to Mojang's launcher instead</button><button class="back" id="gClose" style="margin:10px auto 0">Cancel</button></div>
+</div></div>
+
+<div class="modal" id="signin"><div class="mbox">
+  <h2>Sign in with Microsoft</h2>
+  <ol class="steps"><li>Open <b id="siUrl">microsoft.com/link</b> in any browser (your phone works too).</li><li>Enter this code and sign in with the account that owns Minecraft.</li></ol>
+  <div class="code" id="siCode" title="Click to copy">…</div>
+  <div class="waiting"><span class="spin"></span><span id="siWait">Waiting for you to enter the code…</span></div>
+  <div class="btns"><button class="btn solid" id="siOpen">Open sign-in page</button><button class="btn" id="siCopy">Copy code</button><button class="btn" id="siCancel">Cancel</button></div>
+</div></div>
+
+<div class="modal" id="ask"><div class="mbox">
+  <h2 id="askTitle"></h2><p id="askMsg"></p>
+  <div class="btns"><button class="btn solid" id="askOk">OK</button><button class="btn" id="askNo">Cancel</button></div>
+</div></div>
+
+<div class="modal" id="crash"><div class="mbox">
+  <h2 id="crashTitle">Minecraft crashed</h2><p id="crashSub"></p>
+  <div id="crashFindings"></div>
+  <div class="btns"><button class="btn solid" id="crashReport">Open crash report</button><button class="btn" id="crashLog">Open log</button><button class="btn" id="crashConsole">Console</button><button class="btn" id="crashClose">Close</button></div>
+</div></div>
+
+<div class="toasts" id="toasts"></div>
+<div class="bye" id="bye"><div><div class="title" style="margin:0 0 8px">See you next time.</div><div style="color:var(--dim)">The launcher has stopped. You can close this window.</div></div></div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let ST=null, VERSIONS=[], demo=false, current=null, logNext=0, noticeNext=0, logLines=[];
+
+/* ---------- smoke (paused when hidden, in compact mode, or while the game runs) ---------- */
+const cv=$('#smoke'), cx=cv.getContext('2d');
+let W,H,t=0,animOn=true,raf=0;
+function size(){const d=Math.min(devicePixelRatio||1,1.5);W=cv.width=innerWidth*d;H=cv.height=innerHeight*d}
+addEventListener('resize',size); size();
+const wisps=Array.from({length:10},(_,i)=>({base:i<5?.70+i*.06:.30-(i-5)*.06,amp:.03+((i*37)%10)/250,freq:1.4+((i*13)%7)/5,speed:.12+((i*7)%5)/30,phase:i*1.7,width:18+((i*11)%5)*10,alpha:.05+((i*5)%4)/60}));
+function smoke(){
+  raf=0; if(!animOn) return;
+  t+=1/60; cx.clearRect(0,0,W,H); cx.globalCompositeOperation='lighter';
+  for(const w of wisps){
+    cx.beginPath();
+    for(let y=-20;y<=H+20;y+=14){const k=y/H;const x=W*(w.base+w.amp*Math.sin(k*w.freq*6+t*w.speed+w.phase)+.02*Math.sin(k*13-t*.3+w.phase*2));y<0?cx.moveTo(x,y):cx.lineTo(x,y)}
+    const g=cx.createLinearGradient(0,0,0,H);g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(.35,`rgba(255,255,255,${w.alpha})`);g.addColorStop(.7,`rgba(220,235,255,${w.alpha*1.3})`);g.addColorStop(1,'rgba(255,255,255,0)');
+    cx.strokeStyle=g;cx.lineWidth=w.width*(W/1400);cx.filter=`blur(${w.width/2.2}px)`;cx.stroke();
+    cx.lineWidth=1.5;cx.filter='blur(1px)';cx.strokeStyle=`rgba(255,255,255,${w.alpha*1.4})`;cx.stroke();
+  }
+  cx.filter='none';cx.globalCompositeOperation='source-over';
+  raf=requestAnimationFrame(smoke);
+}
+function setAnim(){
+  const on=!document.hidden && !(ST&&ST.game_running) && !document.body.classList.contains('compact');
+  document.body.classList.toggle('idle',!on);
+  if(on&&!animOn){animOn=true;if(!raf)raf=requestAnimationFrame(smoke)} else if(!on){animOn=false}
+}
+document.addEventListener('visibilitychange',()=>{setAnim();schedule(50)});
+raf=requestAnimationFrame(smoke);
+
+/* ---------- navigation ---------- */
+const loaders={vanilla:'Vanilla',fabric:'Fabric',neoforge:'NeoForge',forge:'Forge'};
+function open(name){
+  $('#menu').classList.toggle('away',!!name);
+  $$('.panel').forEach(p=>p.classList.toggle('on',p.id==='p-'+name));
+  current=name;
+  if(name==='perf') loadPerf();
+  if(name==='mods') loadMods();
+  if(name==='profiles') renderProfiles();
+  if(name==='servers') loadServers();
+  if(name==='versions'){renderVersions();setTimeout(()=>$('#vsearch').focus(),200)}
+  if(name==='console'){const l=$('#log');l.scrollTop=l.scrollHeight}
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-open]');if(b)open(b.dataset.open)});
+$$('.back').forEach(b=>b.onclick=()=>open(null));
+addEventListener('keydown',e=>{if(e.key!=='Escape')return;
+  const m=$('.modal.on'); if(!m){open(null);return}
+  if(m.id==='signin'){cancelSignIn();return}
+  m.classList.remove('on'); if(m.onclose)m.onclose()});
+
+/* ---------- api + toasts ---------- */
+async function api(path,body){
+  const r=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  let j={};try{j=await r.json()}catch(e){}
+  if(!r.ok) throw new Error(j.error||r.statusText); return j;
+}
+function toast(msg,level='info',ms){
+  const el=document.createElement('div');el.className='toast '+level;el.innerHTML=`<span></span><button aria-label="Dismiss">✕</button>`;
+  el.querySelector('span').textContent=msg; el.querySelector('button').onclick=()=>el.remove();
+  $('#toasts').appendChild(el); setTimeout(()=>el.remove(),ms||(level==='error'?9000:5000));
+  while($('#toasts').children.length>4)$('#toasts').firstChild.remove();
+}
+const fail=e=>toast(e.message,'error');
+
+/* styled confirm dialog (no browser pop-ups anywhere) */
+function ask(title,msg,ok='OK',danger=false){
+  return new Promise(res=>{
+    $('#askTitle').textContent=title; $('#askMsg').textContent=msg;
+    const y=$('#askOk'), n=$('#askNo'), m=$('#ask'); y.textContent=ok; y.className='btn '+(danger?'danger':'solid');
+    const done=v=>{m.classList.remove('on');y.onclick=n.onclick=null;m.onclose=null;res(v)};
+    y.onclick=()=>done(true); n.onclick=()=>done(false); m.onclose=()=>done(false);
+    m.classList.add('on'); setTimeout(()=>y.focus(),50);
+  });
+}
+
+/* own window: title bar buttons + whitelisted external links */
+document.addEventListener('click',e=>{
+  const w=e.target.closest('[data-w]'); if(w){winBtn(w.dataset.w);return}
+  const u=e.target.closest('[data-url]'); if(u){e.preventDefault();api('/api/open_url',{url:u.dataset.url}).catch(fail)}
+});
+async function winBtn(a){
+  if(a==='close'){
+    if(ST?.game_running&&!await ask('Close Vibe?','Minecraft is still running. It keeps running after Vibe closes.','Close Vibe'))return;
+    if(ST?.busy&&!await ask('Close Vibe?','Vibe is still installing. Closing now stops it.','Close anyway',true))return;
+  }
+  api('/api/window',{action:a}).catch(()=>{});
+}
+$('.titlebar .drag').ondblclick=()=>winBtn('maximize');
+
+/* ---------- versions ---------- */
+async function loadVersions(){
+  try{VERSIONS=(await api('/api/versions')).versions; renderVersions(); updateVerLabel()}catch(e){fail(e)}
+}
+function versionChoices(){
+  const inst=new Set((ST?.installed||[]).filter(v=>/^\d/.test(v)));
+  const ids=VERSIONS.map(v=>v.id); [...inst].forEach(v=>{if(!ids.includes(v))VERSIONS.push({id:v,type:'installed'})});
+  return VERSIONS.map(v=>({...v,installed:inst.has(v.id)}));
+}
+function renderVersions(){
+  const q=$('#vsearch').value.trim().toLowerCase(), cur=ST?.profile?.version, l=$('#vlist'); l.innerHTML='';
+  const vs=versionChoices().filter(v=>!q||v.id.toLowerCase().includes(q));
+  if(!vs.length){l.innerHTML='<div class="empty" style="padding:12px">No matching 26.x versions.</div>';return}
+  vs.forEach(v=>{const b=document.createElement('button');b.className=v.id===cur?'on':'';
+    b.innerHTML=`<span>${esc(v.id)}</span><span class="s">${v.installed?'installed ✓':v.type==='snapshot'?'snapshot':''}</span>`;
+    b.onclick=async()=>{try{await api('/api/profiles/save',{...ST.profile,version:v.id});await refresh();updateVerLabel();open(null)}catch(e){fail(e)}};
+    l.appendChild(b)});
+  const pv=$('#pf-version'), keep=pv.value; pv.innerHTML=versionChoices().map(v=>`<option value="${esc(v.id)}">${esc(v.id)}${v.installed?' ✓':''}</option>`).join(''); if(keep)pv.value=keep;
+}
+$('#vsearch').oninput=renderVersions;
+$('#verChip').onclick=()=>open('versions');
+function selectedVersion(){return ST?.profile?.version||VERSIONS.find(v=>v.type==='release')?.id||''}
+function updateVerLabel(){ $('#verLabel').textContent=selectedVersion()||'none'; }
+async function toggleSnaps(v){try{await api('/api/settings',{show_snapshots:v});$('#snap').checked=$('#snap2').checked=v;await loadVersions()}catch(e){fail(e)}}
+$('#snap2').onchange=e=>toggleSnaps(e.target.checked);
+
+/* ---------- account ---------- */
+function renderAccount(){
+  const a=ST.account, el=$('#acct');
+  if(!a&&ST.settings.launch_mode!=='direct'){
+    el.innerHTML=ST.official_ready?'<span>Signs in through the official Minecraft Launcher</span>'
+      :'<span style="color:var(--warn)">Open the official Minecraft Launcher once and sign in, then press Play here.</span>';
+    return;
+  }
+  if(a){
+    el.innerHTML=`<img alt="" src="https://mc-heads.net/avatar/${encodeURIComponent(a.id||a.name)}/26" onerror="this.style.visibility='hidden'"><span>Signed in as <span style="color:var(--text)">${esc(a.name)}</span> · <button class="link" id="logout">Sign out</button></span>`;
+    $('#logout').onclick=async()=>{await api('/api/logout',{});refresh()};
+  }else{
+    el.innerHTML=`<span>Not signed in · <button class="link" id="login">Sign in with Microsoft</button></span>${ST.login_error?`<span style="color:var(--bad);margin-left:8px">${esc(ST.login_error)}</span>`:''}`;
+    $('#login').onclick=signIn;
+  }
+}
+async function signIn(){
+  if(!ST.settings.client_id){gate();return}
+  try{const r=await api('/api/login/start',{}); showSignIn(r.device); schedule(300)}catch(e){fail(e)}
+}
+let siDevice=null;
+function showSignIn(d){
+  siDevice=d; const url=d.verification_uri||'https://www.microsoft.com/link';
+  $('#siCode').textContent=d.user_code; $('#siUrl').textContent=url.replace(/^https?:\/\/(www\.)?/,'');
+  $('#siWait').textContent=d.stage==='finishing'?'Code accepted. Finishing sign-in with Xbox and Minecraft…':'Waiting for you to enter the code…';
+  $('#signin').classList.add('on');
+}
+async function copyCode(){
+  try{await navigator.clipboard.writeText(siDevice?.user_code||'');toast('Code copied','success',2000)}catch(e){toast('Select the code and copy it','info')}
+}
+$('#siCode').onclick=copyCode; $('#siCopy').onclick=copyCode;
+$('#siOpen').onclick=()=>{copyCode();api('/api/open_url',{url:siDevice?.verification_uri||'https://www.microsoft.com/link'}).catch(fail)};
+async function cancelSignIn(){$('#signin').classList.remove('on');siDevice=null;try{await api('/api/login/cancel',{})}catch(e){}}
+$('#siCancel').onclick=cancelSignIn;
+
+/* ---------- play ---------- */
+$('#demo').onclick=()=>{demo=!demo;$('#demo').innerHTML=`Demo <b>${demo?'on':'off'}</b>`;renderPlay()};
+function gate(){
+  const hasId=!!ST?.settings.client_id;
+  $('#gateMsg').innerHTML=hasId?'Sign in with the Microsoft account that owns Minecraft: Java Edition. Vibe shows a short code to enter at microsoft.com/link.'
+    :'To sign you in, Vibe needs your own <b>Azure Client ID</b> approved for Minecraft (one-time setup, see the README). Until it\'s approved you can play the free demo, or hand off to Mojang\'s launcher.';
+  $('#gSign').textContent=hasId?'Sign in with Microsoft':'Open Settings to add Client ID';
+  $('#gate').classList.add('on');
+}
+$('#gClose').onclick=()=>$('#gate').classList.remove('on');
+$('#gOfficial').onclick=async()=>{$('#gate').classList.remove('on');try{await api('/api/settings',{launch_mode:'official'});await refresh();filled=false;fillSettings();renderAccount();play()}catch(e){fail(e)}};
+$('#gDemo').onclick=()=>{$('#gate').classList.remove('on');demo=true;$('#demo').innerHTML='Demo <b>on</b>';play()};
+$('#gSign').onclick=()=>{$('#gate').classList.remove('on');if(!ST.settings.client_id){open('settings');setTimeout(()=>$('#cid').focus(),300)}else signIn()};
+async function play(repair){
+  const v=selectedVersion(); if(!v){toast('No 26.x version found. Check your internet connection.','error');return}
+  const official=ST?.settings.launch_mode!=='direct';
+  if(!demo&&!official&&!ST?.account){gate();return}
+  try{await api('/api/play',{version:v,demo,repair:!!repair});schedule(100)}catch(e){fail(e)}
+}
+$('#play').onclick=()=>play(false);
+$('#repair').onclick=()=>play(true);
+function renderPlay(){
+  const p=$('#play'); p.disabled=ST.busy||ST.game_running;
+  const official=ST.settings.launch_mode!=='direct';
+  p.textContent=ST.game_running?'Playing…':ST.busy?(ST.job==='mods'?'Installing mods…':'Getting ready…'):(ST.account||demo||official)?'Play':'Play (sign in)';
+  p.title=official&&!demo?'Prepares this profile, then hands off to Mojang\'s Minecraft Launcher':'';
+}
+
+/* ---------- status, progress + ETA ---------- */
+let etaStart=null;
+function renderStatus(){
+  const f=$('#fill'); let s=ST.status;
+  if(ST.busy&&ST.progress_max>0){
+    const frac=Math.min(1,ST.progress/ST.progress_max); f.classList.remove('indef'); f.style.width=frac*100+'%';
+    if(!etaStart||frac<etaStart.frac) etaStart={t:Date.now(),frac};
+    const el=(Date.now()-etaStart.t)/1000, done=frac-etaStart.frac;
+    let eta=''; if(el>4&&done>0.02){const r=el/done*(1-frac); eta=r>90?` · ~${Math.round(r/60)} min left`:` · ~${Math.max(1,Math.round(r))}s left`}
+    s+=` · ${Math.round(frac*100)}%${eta}`;
+  }else{etaStart=null; if(ST.busy)f.classList.add('indef'); else{f.classList.remove('indef');f.style.width=ST.game_running?'100%':'0'}}
+  $('#status').textContent=s;
+}
+
+/* ---------- console (incremental) ---------- */
+function appendLog(lines,reset){
+  const l=$('#log'); if(reset){logLines=[];l.textContent=''}
+  if(!lines.length)return; const bottom=l.scrollTop+l.clientHeight>=l.scrollHeight-20;
+  logLines.push(...lines); if(logLines.length>1500){logLines=logLines.slice(-1000);l.textContent=logLines.join('\n')+'\n'}
+  else l.append(document.createTextNode(lines.join('\n')+'\n'));
+  if(bottom)l.scrollTop=l.scrollHeight;
+}
+$('#openGame').onclick=()=>api('/api/open',{what:'game'}).catch(fail);
+
+/* ---------- crash ---------- */
+let shownCrash=null;
+function showCrash(c){
+  if(!c)return; $('#crashTitle').textContent=c.headline||'Minecraft crashed';
+  $('#crashSub').textContent=`${c.version} exited with code ${c.exit_code} after ${c.seconds}s. Likely cause${c.findings.length>1?'s':''}:`;
+  $('#crashFindings').innerHTML=c.findings.map(f=>`<div class="finding"><div class="t">${esc(f.title)}</div><div class="e">${esc(f.explain)}</div><div class="f"><b>Fix:</b> ${esc(f.fix)}</div>${f.evidence?`<code>${esc(f.evidence)}</code>`:''}</div>`).join('');
+  $('#crashReport').style.display=c.report_path?'':'none'; $('#crashLog').style.display=c.log_path?'':'none';
+  $('#crashReport').onclick=()=>api('/api/open',{path:c.report_path}).catch(fail);
+  $('#crashLog').onclick=()=>api('/api/open',{path:c.log_path}).catch(fail);
+  $('#crash').classList.add('on');
+}
+$('#crashClose').onclick=()=>$('#crash').classList.remove('on');
+$('#crashConsole').onclick=()=>{$('#crash').classList.remove('on');open('console')};
+$('#showCrash').onclick=()=>showCrash(ST.crash);
+
+/* ---------- profiles ---------- */
+function renderProfiles(){
+  const l=$('#plist'); l.innerHTML='';
+  ST.settings.profiles.forEach(p=>{
+    const d=document.createElement('div');d.className='it';const on=p.id===ST.settings.active_profile;
+    d.innerHTML=`<div class="grow"><div class="t">${on?'● ':''}${esc(p.name)}</div><div class="s">${loaders[p.loader]} · ${esc(p.version||'no version yet')}${p.game_dir?' · own folder':' · main .minecraft'}</div></div>
+      ${on?'<span class="hint" style="margin:0">Active</span>':'<button class="btn small" data-a="use">Use</button>'}
+      <button class="btn small" data-a="edit">Edit</button>${p.id!=='default'?'<button class="x" data-a="del" title="Remove profile">✕</button>':''}`;
+    d.onclick=async e=>{const a=e.target.dataset.a; if(!a)return;
+      try{
+        if(a==='use'){await api('/api/profiles/select',{id:p.id});await refresh();renderProfiles();updateVerLabel();toast(`Switched to ${p.name}`,'success')}
+        if(a==='edit'){$('#pf-id').value=p.id;$('#pf-name').value=p.name;$('#pf-loader').value=p.loader;$('#pf-version').value=p.version;$('#pformTitle').textContent='Edit '+p.name;$('#pf-save').textContent='Save changes';$('#pf-cancel').style.display='';loaderCheck()}
+        if(a==='del'&&await ask('Remove profile?',`"${p.name}" is removed from Vibe. Its folder (worlds and mods) stays on disk.`,'Remove',true)){const r=await api('/api/profiles/delete',{id:p.id});toast(r.note,'info');await refresh();renderProfiles()}
+      }catch(err){fail(err)}};
+    l.appendChild(d)});
+  $('#profLabel').textContent=ST.profile.name;
+}
+function resetPform(){$('#pf-id').value='';$('#pf-name').value='';$('#pf-loader').value='fabric';$('#pformTitle').textContent='New profile';$('#pf-save').textContent='Create profile';$('#pf-cancel').style.display='none';loaderCheck()}
+$('#pf-cancel').onclick=resetPform;
+let lcTimer;
+async function loaderCheck(){
+  clearTimeout(lcTimer); lcTimer=setTimeout(async()=>{
+    const ld=$('#pf-loader').value, v=$('#pf-version').value, c=$('#pf-check');
+    if(ld==='vanilla'||!v){c.textContent=ld==='vanilla'?'Vanilla uses your main .minecraft folder.':'';return}
+    c.textContent='Checking loader support…';
+    try{const r=await api(`/api/loader_check?loader=${ld}&version=${encodeURIComponent(v)}`);
+      c.innerHTML=r.ok?`<span class="l-ok">✓</span> ${esc(r.name)} supports ${esc(v)}. This profile gets its own folder under .minecraft/vibe-profiles.`:`<span class="l-error">✕</span> ${esc(r.name)} doesn't support ${esc(v)} yet. Pick another version or loader.`;
+      $('#pf-save').disabled=!r.ok}catch(e){c.textContent='Couldn\'t check (offline?). You can still save.';$('#pf-save').disabled=false}
+  },250);
+}
+$('#pf-loader').onchange=loaderCheck; $('#pf-version').onchange=loaderCheck;
+$('#pf-save').onclick=async()=>{
+  try{const r=await api('/api/profiles/save',{id:$('#pf-id').value||undefined,name:$('#pf-name').value||loaders[$('#pf-loader').value],loader:$('#pf-loader').value,version:$('#pf-version').value});
+    toast(`Profile "${r.profile.name}" saved and selected`,'success');resetPform();await refresh();renderProfiles();updateVerLabel()}catch(e){fail(e)}
+};
+
+/* ---------- mods ---------- */
+let perfSel=new Set();
+async function loadMods(){
+  try{
+    const r=await api('/api/mods'); const p=r.profile;
+    $('#mods-lede').textContent=`${p.name} · ${loaders[p.loader]} · Minecraft ${p.version||'(no version)'}`;
+    $('#mods-vanilla').style.display=r.vanilla?'':'none'; $('#mods-main').style.display=r.vanilla?'none':'';
+    if(r.vanilla)return;
+    $('#mods-problems').innerHTML=r.problems.length?`<div class="box"><h3>Problems found</h3><ul class="checks">${r.problems.map(x=>`<li><span class="dot l-${x.level}"></span><span>${esc(x.msg)}</span></li>`).join('')}</ul></div>`:'';
+    const l=$('#mlist');l.innerHTML=r.mods.length?'':'<div class="empty">No mods yet.</div>';
+    r.mods.forEach(m=>{const d=document.createElement('div');d.className='it'+(m.enabled?'':' off');
+      d.innerHTML=`<input type="checkbox" class="sw" ${m.enabled?'checked':''} title="Enable/disable"><div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${esc(m.version||'')} · ${esc(m.loader||'?')} · ${esc(m.file)}</div></div><button class="x" title="Remove (moved to trash)">✕</button>`;
+      d.querySelector('.sw').onchange=async e=>{try{await api('/api/mods/toggle',{file:m.file,enabled:e.target.checked});loadMods()}catch(err){fail(err);loadMods()}};
+      d.querySelector('.x').onclick=async()=>{if(!await ask(`Remove ${m.name}?`,"It's moved to the launcher's trash folder, so you can get it back.",'Remove',true))return;try{await api('/api/mods/remove',{file:m.file});toast(`${m.name} removed`,'success');loadMods()}catch(err){fail(err)}};
+      l.appendChild(d)});
+    loadPerfMods(r.mods);
+  }catch(e){fail(e)}
+}
+async function loadPerfMods(installed){
+  const l=$('#perf-list'); l.innerHTML='<div class="empty">Checking compatibility with Modrinth…</div>'; perfSel.clear(); updPerfBtn();
+  const have=new Set(installed.map(m=>m.id.replace(/-/g,'')));
+  try{const r=await api('/api/mods/perf'); l.innerHTML='';
+    r.mods.forEach(m=>{const inst=have.has(m.slug.replace(/-/g,'')); const d=document.createElement('label');d.className='it';d.style.cursor=m.ok&&!inst?'pointer':'default';
+      d.innerHTML=`<input type="checkbox" ${m.ok&&!inst?'':'disabled'} ${inst?'checked':''}><div class="grow"><div class="t">${esc(m.name)} ${inst?'<span class="tag">installed</span>':m.ok?`<span class="tag rec">${esc(m.version)}</span>`:m.error?'<span class="tag">couldn\'t reach Modrinth, try again</span>':'<span class="tag">not available for this version</span>'}</div><div class="s" style="white-space:normal">${esc(m.what)}</div></div>`;
+      const cb=d.querySelector('input'); cb.onchange=()=>{cb.checked?perfSel.add(m.slug):perfSel.delete(m.slug);updPerfBtn()};
+      if(m.ok&&!inst){cb.checked=true;perfSel.add(m.slug)} l.appendChild(d)});
+    updPerfBtn();
+  }catch(e){l.innerHTML=`<div class="empty">Couldn't reach Modrinth: ${esc(e.message)}</div>`}
+}
+function updPerfBtn(){const b=$('#perf-install');b.disabled=!perfSel.size||ST?.busy;b.textContent=perfSel.size?`Install ${perfSel.size} selected`:'Install selected'}
+$('#perf-install').onclick=()=>installMods([...perfSel]);
+async function installMods(slugs){try{await api('/api/mods/install',{slugs});toast('Installing… required dependencies are added automatically.','info');schedule(100)}catch(e){fail(e)}}
+async function doSearch(){
+  const q=$('#msearch').value.trim(), l=$('#msearch-res'); if(!q)return; l.innerHTML='<div class="empty">Searching…</div>';
+  try{const r=await api('/api/mods/search?q='+encodeURIComponent(q)); l.innerHTML=r.results.length?'':'<div class="empty">No compatible mods found.</div>';
+    r.results.forEach(m=>{const d=document.createElement('div');d.className='it';
+      d.innerHTML=`<div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${esc(m.what)}</div></div><button class="btn small">Install</button>`;
+      d.querySelector('button').onclick=()=>installMods([m.slug]); l.appendChild(d)})}catch(e){l.innerHTML=`<div class="empty">${esc(e.message)}</div>`}
+}
+$('#msearch-go').onclick=doSearch; $('#msearch').onkeydown=e=>{if(e.key==='Enter')doSearch()};
+$('#open-mods').onclick=()=>api('/api/open',{what:'mods'}).catch(fail);
+
+/* ---------- servers ---------- */
+let SRV=[], SRVLAST='', SRVSTAT={};
+const CUBE='<svg viewBox="0 0 100 100"><use href="#cube"/></svg>';
+async function loadServers(){
+  try{const r=await api('/api/servers'); SRV=r.servers; SRVLAST=r.last; renderServers(); SRV.forEach(pingOne)}catch(e){fail(e)}
+}
+async function pingOne(s){
+  SRVSTAT[s.address]={...(SRVSTAT[s.address]||{}),loading:true}; renderServers();
+  let r; try{r=await api('/api/servers/ping?address='+encodeURIComponent(s.address))}catch(e){r={online:false,error:e.message}}
+  SRVSTAT[s.address]=r; renderServers();
+}
+function bars(ms){
+  const n=ms<80?4:ms<150?3:ms<300?2:1, c=n>=3?'g':n==2?'y':'r';
+  return `<span class="bars ${c}" title="${ms} ms">${[1,2,3,4].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')}</span>`;
+}
+function renderServers(){
+  const p=ST?.profile, official=ST?.settings.launch_mode!=='direct';
+  $('#srv-lede').textContent=p?`Join with profile ${p.name} · Minecraft ${selectedVersion()||'?'} · `+(official?'opens the official Minecraft Launcher, then pick the server in Multiplayer':'connects straight to the server'):'';
+  const q=$('#srv-filter').value.trim().toLowerCase(), l=$('#srvlist');
+  const list=SRV.filter(s=>{const st=SRVSTAT[s.address]||{};return !q||[s.name,s.address,...(s.tags||[]),st.motd||''].join(' ').toLowerCase().includes(q)});
+  if(!SRV.length){l.innerHTML='<div class="box empty">No servers yet. Add one below, or restore the suggested ones.</div>';return}
+  if(!list.length){l.innerHTML='<div class="box empty">No servers match that filter.</div>';return}
+  const busy=!ST||ST.busy||ST.game_running;
+  l.innerHTML=list.map(s=>{
+    const st=SRVSTAT[s.address]||{loading:true}, on=st.online, loading=st.loading&&on===undefined;
+    const tags=(s.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')+(s.id===SRVLAST?'<span class="tag rec">last joined</span>':'')+(s.custom?'<span class="tag">added by you</span>':'');
+    const motd=loading?'Checking…':on?esc(st.motd||''):esc(st.error||'Offline');
+    const players=on?`<span class="pulse"></span>${st.online_players.toLocaleString()}<small>/ ${st.max_players.toLocaleString()}</small>${bars(st.ping_ms)}`
+      :loading?'<span class="pulse"></span><small>checking</small>':'<span class="pulse"></span><small>offline</small>';
+    return `<div class="srv${on===false?' off':''}${st.loading?' loading':''}" data-id="${esc(s.id)}">
+      <div class="ico">${on&&st.favicon?`<img alt="" src="${esc(st.favicon)}">`:CUBE}</div>
+      <div class="grow"><div class="nm">${esc(s.name)} ${tags}</div><div class="addr">${esc(s.address)}${on&&st.version?' · '+esc(st.version):''}</div><div class="motd">${motd}</div></div>
+      <div class="side"><div class="pl">${players}</div><div class="btns" style="margin:0"><button class="btn small solid join" data-a="join" ${busy||on===false?'disabled':''}>Join</button><button class="x" data-a="del" title="Remove from list">✕</button></div></div>
+    </div>`}).join('');
+}
+$('#srvlist').onclick=async e=>{
+  const a=e.target.dataset.a, card=e.target.closest('.srv'); if(!a||!card)return;
+  const s=SRV.find(x=>x.id===card.dataset.id); if(!s)return;
+  if(a==='join') joinServer(s);
+  if(a==='del'&&await ask(`Remove ${s.name}?`,'It disappears from your Vibe server list. Your in-game list is not changed.','Remove',true)){try{await api('/api/servers/remove',{id:s.id});loadServers()}catch(err){fail(err)}}
+};
+async function joinServer(s){
+  if(demo){toast("The free demo can't join servers. Turn Demo off first.",'warn');return}
+  const v=selectedVersion(); if(!v){toast('No 26.x version found. Check your internet connection.','error');return}
+  const official=ST.settings.launch_mode!=='direct';
+  if(!official&&!ST.account){gate();return}
+  try{await api('/api/servers/join',{id:s.id,version:v}); SRVLAST=s.id; renderServers();
+    toast(official?`Getting ${s.name} ready…`:`Launching Minecraft and joining ${s.name}…`,'info'); schedule(100)}catch(e){fail(e)}
+}
+$('#srv-filter').oninput=renderServers;
+$('#srv-refresh').onclick=()=>{SRVSTAT={};loadServers()};
+$('#srv-add').onclick=async()=>{
+  const m=$('#srv-addmsg');
+  try{const r=await api('/api/servers/save',{name:$('#srv-name').value,address:$('#srv-addr').value});
+    $('#srv-name').value=$('#srv-addr').value=''; m.textContent=''; toast(`${r.server.name} added`,'success'); loadServers()}
+  catch(e){m.innerHTML=`<span class="l-error">✕</span> ${esc(e.message)}`}
+};
+$('#srv-addr').onkeydown=e=>{if(e.key==='Enter')$('#srv-add').click()};
+$('#srv-restore').onclick=async()=>{try{await api('/api/servers/restore',{});loadServers()}catch(e){fail(e)}};
+
+/* ---------- performance optimizer ---------- */
+let PERF=null, chosenPreset=null;
+const gb=mb=>(mb/1024).toFixed(1)+' GB';
+async function loadPerf(){
+  try{
+    PERF=await api('/api/optimizer'); const h=PERF.hardware; chosenPreset=PERF.preset;
+    $('#hwgrid').innerHTML=[
+      ['CPU',h.cpu,`${h.cores} threads`],['GPU',h.gpus.length?h.gpu_main:'Not detected',!h.gpus.length?'couldn\'t read GPU info':h.integrated_only?'integrated graphics':(h.gpus.length>1?`${h.gpus.length} GPUs found`:'dedicated')],
+      ['RAM',gb(h.ram_total_mb),`${gb(h.ram_available_mb)} free now`],['System',h.os,`${h.arch}${h.is_64bit?' · 64-bit':' · 32-bit'}`]
+    ].map(([k,v,s])=>`<div class="stat"><div class="k">${k}</div><div class="v" title="${esc(v)}">${esc(v)}</div><div class="s">${esc(s)}</div></div>`).join('');
+    $('#checks').innerHTML=PERF.checks.map(c=>`<li><span class="dot l-${c.level}"></span><span class="area">${esc(c.area)}</span><span>${esc(c.msg)}</span></li>`).join('');
+    renderPresets();
+    const r=$('#ram'); r.max=Math.max(2048,PERF.ram.hard_max); r.value=PERF.ram.current; $('#minram').max=r.max;
+    $('#minram').value=ST.settings.min_ram_mb||0; $('#jvm2').value=ST.settings.extra_jvm_args||'';
+    ramUi(); minUi(); ramCheck();
+    const b=PERF.backups; $('#backuplist').textContent=b.length?`Last backup: ${new Date(b[0].time*1000).toLocaleString()}`:''; $('#restorePerf').disabled=!b.length;
+  }catch(e){fail(e)}
+}
+function renderPresets(){
+  $('#presets').innerHTML=Object.entries(PERF.presets).map(([k,p])=>`<button class="preset ${k===chosenPreset?'on':''}" data-k="${k}"><div class="n">${esc(p.name)}${k===PERF.suggested?'<span class="tag rec">suggested</span>':''}</div><div class="b">${esc(p.blurb)}</div><div class="b">RAM: ${gb(p.ram_mb)}</div></button>`).join('');
+  $$('.preset').forEach(b=>b.onclick=()=>{chosenPreset=b.dataset.k;renderPresets();$('#ram').value=PERF.presets[chosenPreset].ram_mb;ramUi();ramCheck()});
+  $('#jvmprev').textContent=PERF.presets[chosenPreset]?.jvm.slice(2).join(' ')||'(Java defaults)';
+}
+function ramUi(){const v=+$('#ram').value;$('#ramv').textContent=gb(v)}
+function minUi(){const v=+$('#minram').value;$('#minramv').textContent=v?gb(v):'auto'}
+let rcT; function ramCheck(){clearTimeout(rcT);rcT=setTimeout(async()=>{try{const r=await api('/api/ram_check',{ram_mb:+$('#ram').value});
+  $('#ramchecks').innerHTML=r.checks.map(c=>`<li><span class="dot l-${c.level}"></span><span>${esc(c.msg)}</span></li>`).join('')}catch(e){}},200)}
+$('#ram').oninput=()=>{ramUi();ramCheck()}; $('#minram').oninput=minUi;
+$('#applyPerf').onclick=async()=>{
+  try{
+    await api('/api/settings',{min_ram_mb:+$('#minram').value,extra_jvm_args:$('#jvm2').value});
+    await api('/api/optimizer/apply',{preset:chosenPreset,ram_mb:+$('#ram').value,apply_options:$('#applyopts').checked});
+    toast(`${PERF.presets[chosenPreset].name} applied${$('#applyopts').checked?' (incl. video settings)':''}. Backup saved.`,'success'); await refresh(); loadPerf();
+  }catch(e){fail(e)}
+};
+$('#restorePerf').onclick=async()=>{if(!await ask('Restore previous settings?','Puts back the settings from before your last Apply.','Restore'))return;try{await api('/api/optimizer/restore',{});toast('Previous settings restored','success');await refresh();loadPerf()}catch(e){fail(e)}};
+
+/* ---------- settings ---------- */
+let filled=false;
+function fillSettings(){
+  if(filled)return; filled=true; const s=ST.settings;
+  $('#mcdir').value=s.minecraft_dir; $('#cid').value=s.client_id; $('#snap').checked=$('#snap2').checked=s.show_snapshots;
+  $('#compact').checked=s.compact;
+  $$('input[name=lmode]').forEach(r=>r.checked=r.value===(s.launch_mode||'direct')); $('#olpath').value=s.official_launcher_path||'';
+  document.body.classList.toggle('compact',!!s.compact); setAnim();
+}
+$('#save').onclick=async()=>{
+  try{await api('/api/settings',{minecraft_dir:$('#mcdir').value.trim(),client_id:$('#cid').value.trim(),show_snapshots:$('#snap').checked,compact:$('#compact').checked,
+      launch_mode:($('input[name=lmode]:checked')||{}).value||'direct',official_launcher_path:$('#olpath').value.trim()});
+    document.body.classList.toggle('compact',$('#compact').checked); setAnim();
+    $('#saved').textContent='Saved'; setTimeout(()=>$('#saved').textContent='',2000); await refresh(); renderAccount(); renderPlay(); loadVersions()}catch(e){fail(e)}
+};
+
+/* ---------- quit ---------- */
+$('#quit').onclick=async()=>{
+  if(ST?.game_running&&!await ask('Quit Vibe?','Minecraft is still running. It keeps running after Vibe closes.','Quit'))return;
+  try{await api('/api/quit',{})}catch(e){}
+  stopped=true; $('#bye').style.display='grid'; setTimeout(()=>window.close(),600);
+};
+
+/* ---------- polling: fast while busy, slow while playing or hidden ---------- */
+let timer=0, stopped=false, firstState=true;
+function schedule(ms){clearTimeout(timer); if(!stopped) timer=setTimeout(refresh,ms)}
+let inflight=false;
+async function refresh(){
+  if(inflight){schedule(150);return} inflight=true;
+  try{
+    const prevA=JSON.stringify(ST?.account), prevE=ST?.login_error, prevBusy=ST?.busy, prevReady=ST?.official_ready;
+    ST=await api(`/api/state?log=${logNext}&n=${noticeNext}`);
+    appendLog(ST.log,ST.log_reset); logNext=ST.log_next;
+    for(const n of ST.notices){ if(n.id<=noticeNext) continue; if(!firstState) toast(n.msg,n.level,n.msg.length>120?15000:0); noticeNext=n.id }
+    if(ST.crash&&shownCrash!==ST.crash.time){shownCrash=ST.crash.time; if(!firstState)showCrash(ST.crash)}
+    document.body.classList.toggle('native',!!ST.native);
+    if(ST.device_login) showSignIn(ST.device_login);
+    else if($('#signin').classList.contains('on')){$('#signin').classList.remove('on'); siDevice=null;
+      if(ST.login_error&&ST.login_error!==prevE) toast(ST.login_error,'error',12000)}
+    $('#showCrash').style.display=ST.crash?'':'none';
+    if(JSON.stringify(ST.account)!==prevA||ST.login_error!==prevE||ST.official_ready!==prevReady||!$('#acct').innerHTML) renderAccount();
+    renderPlay(); renderStatus(); fillSettings(); updPerfBtn();
+    $('#profLabel').textContent=ST.profile.name;
+    if(!VERSIONS.length) await loadVersions(); else updateVerLabel();
+    if(prevBusy&&!ST.busy&&current==='mods') loadMods();
+    if(current==='servers') $$('#srvlist .join').forEach(b=>{const off=b.closest('.srv').classList.contains('off');b.disabled=ST.busy||ST.game_running||off});
+    firstState=false; setAnim();
+    schedule(document.hidden?5000:ST.game_running?4000:ST.busy?700:1500);
+  }catch(e){
+    $('#status').textContent='Launcher backend not reachable. Is launcher.py running?';
+    schedule(3000);
+  }finally{inflight=false}
+}
+refresh();
+api('/api/optimizer').then(r=>{$('#tokstore').textContent=r.token_storage}).catch(()=>{});
+</script>
+</body>
+</html>

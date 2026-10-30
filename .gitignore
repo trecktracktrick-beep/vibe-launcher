@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Builds (the .exe is published as a GitHub release instead)
+dist/
+build/
+*.spec
+*.zip
+
+# Local temp files
+*.vibe-tmp
+*.tmp
