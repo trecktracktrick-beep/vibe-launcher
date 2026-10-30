@@ -387,6 +387,66 @@ class LauncherTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
+    # -- the game must never start without a verified Microsoft account that owns it
+    def _launch(self, refresh):
+        """Run play_worker with refresh_account's network call replaced; return the
+        mocked Popen so tests can check whether the game was started."""
+        L = self.L
+        L.S.account = {"name": "Old", "id": "old-id", "access_token": "old", "refresh_token": "r"}
+        L.S.settings["client_id"] = "cid"
+        L.S.settings["minecraft_dir"] = str(Path(self.tmp.name) / "mc")
+        L.S.settings["launch_mode"] = "direct"
+        captured = {}
+
+        def cmd(vid, d, options):
+            captured.update(options)
+            return ["java", "-jar", "mc.jar"]
+        proc = mock.MagicMock(stdout=iter([]), **{"wait.return_value": 0})
+        with mock.patch.object(L.msauth, "refresh", refresh), \
+                mock.patch.object(L, "prepare_game", return_value=("26.2", 25, ["-Xmx2G"])), \
+                mock.patch.object(L.mll, "command", types.SimpleNamespace(get_minecraft_command=cmd), create=True), \
+                mock.patch.object(L.subprocess, "Popen", return_value=proc) as popen, \
+                mock.patch.object(L.S.store, "save"), mock.patch.object(L.S.store, "clear"):
+            L.play_worker("26.2", False)
+        return popen, captured
+
+    def test_launch_blocked_when_sign_in_fails(self):
+        popen, _ = self._launch(mock.Mock(side_effect=self.L.msauth.AuthError("expired", "refresh")))
+        popen.assert_not_called()
+        self.assertIsNone(self.L.S.account)
+
+    def test_launch_blocked_when_account_does_not_own_game(self):
+        err = self.L.msauth.AuthError("doesn't own", "AccountNotOwnMinecraft")
+        popen, _ = self._launch(mock.Mock(side_effect=err))
+        popen.assert_not_called()
+        self.assertIsNone(self.L.S.account)
+
+    def test_launch_blocked_on_empty_token(self):
+        popen, _ = self._launch(mock.Mock(return_value={"name": "Steve", "id": "u", "access_token": "",
+                                                        "refresh_token": "r"}))
+        popen.assert_not_called()
+
+    def test_launch_blocked_on_unexpected_auth_error(self):
+        popen, _ = self._launch(mock.Mock(side_effect=KeyError("Token")))
+        popen.assert_not_called()
+
+    def test_launch_uses_freshly_verified_account(self):
+        fresh = {"name": "Steve", "id": "uuid-1", "access_token": "fresh-token", "refresh_token": "r2"}
+        popen, opts = self._launch(mock.Mock(return_value=fresh))
+        popen.assert_called_once()
+        self.assertEqual((opts["username"], opts["uuid"], opts["token"]), ("Steve", "uuid-1", "fresh-token"))
+        self.assertNotIn("demo", opts)
+
+    def test_play_api_refuses_demo_and_no_account(self):
+        L = self.L
+        L.S.settings["launch_mode"] = "direct"
+        L.S.account = None
+        with self.assertRaises(ValueError):
+            L.Handler._post(object(), "/api/play", {"version": "26.2", "demo": True})
+        with self.assertRaises(ValueError):
+            L.Handler._post(object(), "/api/play", {"version": "26.2"})
+        self.assertFalse(L.S.busy)
+
     def test_version_filter(self):
         ok = ["26.1", "26.2.1", "26.3-snapshot-2", "fabric-loader-0.17.2-26.2"]
         bad = ["1.21.10", "1.20.1", "fabric-loader-0.17.2-1.21.10", "25w41a", "b1.7.3"]

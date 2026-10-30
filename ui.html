@@ -215,7 +215,6 @@ body.compact .box{padding:12px 14px}
   <div class="chipline">
     <button class="chip" id="verChip" title="Change version">Version <b id="verLabel">…</b></button>
     <button class="chip" data-open="profiles" title="Change profile">Profile <b id="profLabel">…</b></button>
-    <button class="chip" id="demo">Demo <b>off</b></button>
   </div>
   <div class="gap"></div>
   <button class="item" data-open="servers">Servers</button>
@@ -356,7 +355,7 @@ body.compact .box{padding:12px 14px}
 
 <div class="modal" id="gate"><div class="mbox" style="text-align:center">
   <h2>Sign in to play</h2><p id="gateMsg"></p>
-  <div class="btns" style="flex-direction:column"><button class="btn solid" id="gSign">Sign in with Microsoft</button><button class="btn" id="gDemo">Play the free demo instead</button><button class="btn" id="gOfficial">Hand off to Mojang's launcher instead</button><button class="back" id="gClose" style="margin:10px auto 0">Cancel</button></div>
+  <div class="btns" style="flex-direction:column"><button class="btn solid" id="gSign">Sign in with Microsoft</button><button class="btn" id="gOfficial">Hand off to Mojang's launcher instead</button><button class="back" id="gClose" style="margin:10px auto 0">Cancel</button></div>
 </div></div>
 
 <div class="modal" id="signin"><div class="mbox">
@@ -384,7 +383,7 @@ body.compact .box{padding:12px 14px}
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let ST=null, VERSIONS=[], demo=false, current=null, logNext=0, noticeNext=0, logLines=[];
+let ST=null, VERSIONS=[], current=null, logNext=0, noticeNext=0, logLines=[];
 
 /* ---------- smoke (paused when hidden, in compact mode, or while the game runs) ---------- */
 const cv=$('#smoke'), cx=cv.getContext('2d');
@@ -534,31 +533,29 @@ async function cancelSignIn(){$('#signin').classList.remove('on');siDevice=null;
 $('#siCancel').onclick=cancelSignIn;
 
 /* ---------- play ---------- */
-$('#demo').onclick=()=>{demo=!demo;$('#demo').innerHTML=`Demo <b>${demo?'on':'off'}</b>`;renderPlay()};
 function gate(){
   const hasId=!!ST?.settings.client_id;
   $('#gateMsg').innerHTML=hasId?'Sign in with the Microsoft account that owns Minecraft: Java Edition. Vibe shows a short code to enter at microsoft.com/link.'
-    :'To sign you in, Vibe needs your own <b>Azure Client ID</b> approved for Minecraft (one-time setup, see the README). Until it\'s approved you can play the free demo, or hand off to Mojang\'s launcher.';
+    :'To sign you in, Vibe needs your own <b>Azure Client ID</b> approved for Minecraft (one-time setup, see the README). Until it\'s approved you can hand off to Mojang\'s launcher, which signs you in itself.';
   $('#gSign').textContent=hasId?'Sign in with Microsoft':'Open Settings to add Client ID';
   $('#gate').classList.add('on');
 }
 $('#gClose').onclick=()=>$('#gate').classList.remove('on');
 $('#gOfficial').onclick=async()=>{$('#gate').classList.remove('on');try{await api('/api/settings',{launch_mode:'official'});await refresh();filled=false;fillSettings();renderAccount();play()}catch(e){fail(e)}};
-$('#gDemo').onclick=()=>{$('#gate').classList.remove('on');demo=true;$('#demo').innerHTML='Demo <b>on</b>';play()};
 $('#gSign').onclick=()=>{$('#gate').classList.remove('on');if(!ST.settings.client_id){open('settings');setTimeout(()=>$('#cid').focus(),300)}else signIn()};
 async function play(repair){
   const v=selectedVersion(); if(!v){toast('No 26.x version found. Check your internet connection.','error');return}
   const official=ST?.settings.launch_mode!=='direct';
-  if(!demo&&!official&&!ST?.account){gate();return}
-  try{await api('/api/play',{version:v,demo,repair:!!repair});schedule(100)}catch(e){fail(e)}
+  if(!official&&!ST?.account){gate();return}
+  try{await api('/api/play',{version:v,repair:!!repair});schedule(100)}catch(e){fail(e)}
 }
 $('#play').onclick=()=>play(false);
 $('#repair').onclick=()=>play(true);
 function renderPlay(){
   const p=$('#play'); p.disabled=ST.busy||ST.game_running;
   const official=ST.settings.launch_mode!=='direct';
-  p.textContent=ST.game_running?'Playing…':ST.busy?(ST.job==='mods'?'Installing mods…':'Getting ready…'):(ST.account||demo||official)?'Play':'Play (sign in)';
-  p.title=official&&!demo?'Prepares this profile, then hands off to Mojang\'s Minecraft Launcher':'';
+  p.textContent=ST.game_running?'Playing…':ST.busy?(ST.job==='mods'?'Installing mods…':'Getting ready…'):(ST.account||official)?'Play':'Play (sign in)';
+  p.title=official?'Prepares this profile, then hands off to Mojang\'s Minecraft Launcher':'';
 }
 
 /* ---------- status, progress + ETA ---------- */
@@ -720,7 +717,6 @@ $('#srvlist').onclick=async e=>{
   if(a==='del'&&await ask(`Remove ${s.name}?`,'It disappears from your Vibe server list. Your in-game list is not changed.','Remove',true)){try{await api('/api/servers/remove',{id:s.id});loadServers()}catch(err){fail(err)}}
 };
 async function joinServer(s){
-  if(demo){toast("The free demo can't join servers. Turn Demo off first.",'warn');return}
   const v=selectedVersion(); if(!v){toast('No 26.x version found. Check your internet connection.','error');return}
   const official=ST.settings.launch_mode!=='direct';
   if(!official&&!ST.account){gate();return}

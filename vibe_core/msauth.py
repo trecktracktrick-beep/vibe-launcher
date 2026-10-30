@@ -141,7 +141,7 @@ def minecraft_login(ms_token):
                    json_body={"identityToken": f"XBL3.0 x={uhs};{xsts['Token']}"})
     if st != 200 or "access_token" not in mc:
         raise AuthError("Your Azure app isn't approved for the Minecraft API yet. Apply at "
-                        "aka.ms/mce-reviewappid; until then you can use the official launcher route or the demo.",
+                        "aka.ms/mce-reviewappid; until then you can hand off to Mojang's launcher (Settings).",
                         "AzureAppNotPermitted")
 
     st, prof = _get("https://api.minecraftservices.com/minecraft/profile",

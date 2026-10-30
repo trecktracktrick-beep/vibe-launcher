@@ -17,7 +17,6 @@ import sys
 import threading
 import time
 import traceback
-import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -630,7 +629,17 @@ def watch_for_crash(game_dir, launch_id, since, hours=6):
             return
 
 
-def play_worker(version, demo, repair, server=None):
+def verified_account():
+    """Re-check the sign-in with Microsoft, Xbox and Minecraft right before every
+    launch, including that the account owns the game (it has a Java profile).
+    Returns the fresh account, or None. The game is never started without one."""
+    acct = refresh_account()
+    if not acct or not all(str(acct.get(k) or "").strip() for k in ("access_token", "id", "name")):
+        return None
+    return acct
+
+
+def play_worker(version, repair, server=None):
     p = active_profile()
     mc_dir = S.settings["minecraft_dir"]
     game_dir = profile_game_dir(p)
@@ -638,18 +647,17 @@ def play_worker(version, demo, repair, server=None):
         Path(mc_dir).mkdir(parents=True, exist_ok=True)
         Path(game_dir).mkdir(parents=True, exist_ok=True)
 
-        if demo:
-            options = {"username": "Player", "uuid": str(uuid.uuid4()), "token": "", "demo": True}
-        else:
-            S.set_status("Refreshing your session...")
-            acct = refresh_account()
-            if not acct:
-                with S.lock:
-                    S.account = None
-                S.set_status("Sign-in expired. Please sign in again.")
-                S.notify("Your sign-in expired. Please sign in again.", "error")
-                return
-            options = {"username": acct["name"], "uuid": acct["id"], "token": acct["access_token"]}
+        S.set_status("Checking your sign-in...")
+        acct = verified_account()
+        if not acct:
+            with S.lock:
+                S.account = None
+            S.store.clear()
+            S.set_status("Not signed in. The game wasn't started.")
+            S.notify("Couldn't verify your Microsoft account or game ownership, so the game wasn't started. "
+                     "Please sign in again.", "error")
+            return
+        options = {"username": acct["name"], "uuid": acct["id"], "token": acct["access_token"]}
 
         launch_id, java_major, jvm = prepare_game(p, version, repair)
         options.update({"jvmArguments": jvm, "gameDirectory": game_dir,
@@ -1052,17 +1060,18 @@ class Handler(BaseHTTPRequestHandler):
             return None
         if path == "/api/play":
             version = str(b.get("version", "")).strip()
-            demo = bool(b.get("demo"))
+            if b.get("demo"):
+                raise ValueError("Playing without signing in isn't supported. Sign in with Microsoft.")
             if not version:
                 raise ValueError("Pick a version")
             if not is_new_enough(version):
                 raise ValueError("Only Minecraft 26.x and newer are supported.")
-            if not demo and S.settings.get("launch_mode") == "official":
+            if S.settings.get("launch_mode") == "official":
                 start_job("play", handoff_worker, version, bool(b.get("repair")))
                 return None
-            if not demo and not S.account:
-                raise ValueError("Sign in first (or use Demo mode)")
-            start_job("play", play_worker, version, demo, bool(b.get("repair")))
+            if not S.account:
+                raise ValueError("Sign in with Microsoft first.")
+            start_job("play", play_worker, version, bool(b.get("repair")))
             return None
         if path == "/api/servers/save":
             return {"ok": True, "server": save_server(b)}
@@ -1093,8 +1102,8 @@ class Handler(BaseHTTPRequestHandler):
                 start_job("play", handoff_worker, version, False, srv)
                 return None
             if not S.account:
-                raise ValueError("Sign in first. (The free demo can't join servers.)")
-            start_job("play", play_worker, version, False, False, srv)
+                raise ValueError("Sign in with Microsoft first.")
+            start_job("play", play_worker, version, False, srv)
             return None
         if path == "/api/optimizer/apply":
             bid = optimizer_apply(b.get("preset", "balanced"), b.get("ram_mb") or S.settings["ram_mb"],
